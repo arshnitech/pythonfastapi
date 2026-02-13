@@ -3,16 +3,15 @@ trigger:
     include:
       - main
 
-variables:
-  pythonVersion: '3.10'
-
 pool:
   name: TestAgent
 
 steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '$(pythonVersion)'
+
+- script: |
+    echo Python Version
+    python --version
+  displayName: Check Python
 
 - script: |
     python -m pip install --upgrade pip
@@ -25,10 +24,8 @@ steps:
     includeRootFolder: false
     archiveType: 'zip'
     archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-  displayName: 'Archive App'
-
-- publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
-  artifact: drop
+    replaceExistingArchive: true
+  displayName: Archive App
 
 - task: AzureWebApp@1
   inputs:
