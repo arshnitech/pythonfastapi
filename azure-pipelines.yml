@@ -1,34 +1,62 @@
 trigger:
-  branches:
-    include:
-      - main
+- main
 
-pool:
-  name: TestAgent
+variables:
+  azureServiceConnectionId: '9aba420c-6c7f-42fd-9203-68527a27c47b'
+  webAppName: 'mtappee'
+  pythonVersion: '3.11'
 
-steps:
-- script: |
-    echo "Python Version"
-    python3 --version
-  displayName: Check Python
+stages:
 
-- script: |
-    python3 -m pip install --upgrade pip
-    pip3 install -r requirements.txt
-  displayName: Install Dependencies
+- stage: Build
+  displayName: Build Stage
+  jobs:
+  - job: BuildJob
+    pool:
+      name: TestAgent   # ✅ Self-hosted pool
 
-- task: ArchiveFiles@2
-  inputs:
-    rootFolderOrFile: '.'
-    includeRootFolder: false
-    archiveType: 'zip'
-    archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-    replaceExistingArchive: true
-  displayName: Archive App
+    steps:
+    - script: |
+        echo Python Version
+        python --version
+      displayName: Check Python
 
-- task: AzureWebApp@1
-  inputs:
-    azureSubscription: 'connection1'
-    appType: webAppLinux
-    appName: 'testapp132'
-    package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      displayName: Install Dependencies
+
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '.'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/app.zip
+        replaceExistingArchive: true
+      displayName: Archive Files
+
+    - publish: $(Build.ArtifactStagingDirectory)/app.zip
+      artifact: drop
+
+- stage: Deploy
+  displayName: Deploy Stage
+  dependsOn: Build
+  condition: succeeded()
+
+  jobs:
+  - deployment: DeploymentJob
+    pool:
+      name: TestAgent   # ✅ Self-hosted pool again
+
+    environment: mtappee
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: $(azureServiceConnectionId)
+              appType: webAppLinux
+              appName: $(webAppName)
+              package: $(Pipeline.Workspace)/drop/app.zip
